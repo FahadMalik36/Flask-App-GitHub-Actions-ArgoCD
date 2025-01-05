@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
       - name: weather-check
-        image: 1nfosecsingh/demo-app:v20250105063128
+        image: 1nfosecsingh/demo-app:v2025010506342220250105063128
         ports:
         - containerPort: 5000
