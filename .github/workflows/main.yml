@@ -56,6 +56,23 @@ jobs:
       - name: Push Docker Image
         run: |
           docker push 1nfosecsingh/demo-app:${{ env.VERSION }}
+      
+      # UPdate the K8s Manifest Files
+      - name: Update K8s Manifests
+        run: |
+          sed -i 's/image: 1nfosecsingh/demo-app:*/image: 1nfosecsingh/demo-app:${{ env.VERSION }}/' deploy/deploy.yaml
+
+      # Update Github
+      - name: Commit the changes
+        run: |
+          git config --global user.email "<>"
+          git config --global user.name "GitHub Actions Bot"
+          git add deploy/deploy.yaml
+          git commit -m "Update deploy.yaml with new image version - ${{ env.VERSION }}"
+          git push origin master
+          
+      
+
 
         
       
