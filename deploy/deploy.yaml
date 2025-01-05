@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
       - name: demo-app
-        image: 1nfosecsingh/demo-app:v2025010506342220250105063128
+        image: 1nfosecsingh/demo-app:v20250105064441
         ports:
         - containerPort: 5000
