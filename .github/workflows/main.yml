@@ -67,7 +67,7 @@ jobs:
       # Update Github
       - name: Commit the changes
         run: |
-          git config --global user.email "<infosecsingh@gmail.com>"
+          git config --global user.email "<>"
           git config --global user.name "GitHub Actions Bot"
           git add deploy/deploy.yaml
           git commit -m "Update deploy.yaml with new image version - ${{ env.VERSION }}"
