@@ -60,8 +60,7 @@ jobs:
       # UPdate the K8s Manifest Files
       - name: Update K8s Manifests
         run: |
-          sed -i "s|image: 1nfosecsingh/demo-app:v*|image: 1nfosecsingh/demo-app:${{ env.VERSION }}|g" deploy/deploy.yaml
-
+          sed -i "s|image: 1nfosecsingh/weather-check-app:.*|image: 1nfosecsingh/weather-check-app:${{ env.VERSION }}|g" deploy/deploy.yaml
       # Update Github
       - name: Commit the changes
         run: |
