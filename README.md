@@ -107,78 +107,84 @@ Note: you need to change the name of your image, according to your dockerhub use
     ```
 2. Create your first pipeline for TEST and BUILD the image. make sure it should be yaml file
     ```
-    name: Build and Push Docker Image
+    name: Test and Build
+
     on:
     push:
         branches:
-        - master #Trigger from master branch
+        - master
         paths:
-        - '**/*' #Any changes in master branch
-
-    #If changes done, then below job will execute and there are steps mentioned 
+        - '**/*'
 
     jobs:
-    Build:  # Build for like env, where docker build command will run, like docker runner
+    build:
         runs-on: ubuntu-latest
 
-        steps: 
-            - name: checkout code
-                uses: actions/checkout@v2 #1 step - it pulls down the latest code from your GitHub repository to the runner mechine(above mentioned ubuntu)
+        steps:
+        #Setting up environment
+        - name: Checkout code
+            uses: actions/checkout@v2
 
-            - name: Set up Python
-                uses: actions/setup-python@v4
-                with:
-                python-version: '3.9'
+        - name: Setup Python
+            uses: actions/setup-python@v2
+            with:
+            python-version: '3.9'
 
-            - name: Install dependencies
-                run: |
-                python -m pip install --upgrade pip
-                pip install -r requirements.txt
-                pip install flake8
+        - name: Docker Setup
+            uses: docker/setup-buildx-action@v2
 
-            - name: Run Linting Tests
-                run: |
-                flake8 --ignore=E501,F401 .
-
-            - name: Setup Docker Buildx
-                uses: docker/setup-buildx-action@v2 # 2 Step - ensures that the runner has Docker Buildx installed and ready to use for building your Docker images with advanced features.
-
-            - name: Login in to Docker Hub 
-                uses: docker/login-action@v2
-                with:
-                username: ${{ secrets.DOCKER_USERNAME }}
-                password: ${{ secrets.DOCKER_PASSWORD }}
-
-                # Step 4: Create a version tag based on the latest commit hash
-            - name: Generate version tag
-                id: version
-                run: |
-                VERSION=v$(date +'%Y%m%d%H%M%S')
-                echo "VERSION=$VERSION" >> $GITHUB_ENV
-
-            - name: Build Image
-                run: |
-                docker build -t 1nfosecsingh/weather-check-app:${{ env.VERSION }} .
-
-            - name: Push Image
-                run: |
-                docker push 1nfosecsingh/weather-check-app:${{ env.VERSION }}
+        - name: Install dependencies
+            run: |
+            python -m pip install --upgrade pip
+            pip install -r requirements.txt
+            pip install flake8
             
-            # Step 7: Checkout the repository that contains the Kubernetes manifests
-            - name: Update manifest with new image tag
-                run: |
-                sed -i "s|image: 1nfosecsingh/weather-check-app:.*|image: 1nfosecsingh/weather-check-app:${{ env.VERSION }}|g" deploy/deploy.yaml
+        # Test the Code
+        - name: Run Linting tests
+            run: |
+            flake8 --ignore=E501,F401 .
+        
+        - name: Docker Credentials
+            uses: docker/login-action@v2
+            with:
+            username: ${{ secrets.DOCKER_USERNAME }}
+            password: ${{ secrets.DOCKER_PASSWORD }}
+        
+        - name: Docker tag
+            id: version
+            run: |
+            VERSION=v$(date +"%Y%m%d%H%M%S")
+            echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-            #push changes into manifest file
-            - name: Commit and push changes to manifest files
-                run: |
-                git config --global user.name "GitHub Action Bot"
-                git config --global user.email "<>"
-                git add deploy/deploy.yaml
-                git commit -m "Update Docker image tag to ${{ env.VERSION }}"
-                git remote set-url origin https://github-actions:${{ secrets.GITHUB_TOKEN }}@github.com/infosecsingh/Weather-Check.git
-                git push origin master
+        # Build the Docker Image
+        - name: Build Docker Image
+            run: |
+            docker build . -t 1nfosecsingh/demo-app:${{ env.VERSION }} 
+        
+        # Push the Docker Image
+        - name: Push Docker Image
+            run: |
+            docker push 1nfosecsingh/demo-app:${{ env.VERSION }}
+        
+        # UPdate the K8s Manifest Files
+        - name: Update K8s Manifests
+            run: |
+            cat deploy/deploy.yaml
+            sed -i "s|image: 1nfosecsingh/demo-app:.*|image: 1nfosecsingh/demo-app:${{ env.VERSION }}|g" deploy/deploy.yaml
+            cat deploy/deploy.yaml
+
+        # Update Github
+        - name: Commit the changes
+            run: |
+            git config --global user.email "<infosecsingh@gmail.com>"
+            git config --global user.name "GitHub Actions Bot"
+            git add deploy/deploy.yaml
+            git commit -m "Update deploy.yaml with new image version - ${{ env.VERSION }}"
+            git remote set-url origin https://github-actions:${{ secrets.GITHUB_TOKEN }}@github.com/infosecsingh/Flask-App-GitHub-Actions-ArgoCD.git
+            git push origin master
     ```
+
+1. Make sure setup your docker Personal Access token into github repo. 
 
 ## Setup ArgoCD in Minikube
 
