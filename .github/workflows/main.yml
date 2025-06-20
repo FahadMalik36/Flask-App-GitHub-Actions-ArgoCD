@@ -39,7 +39,7 @@ jobs:
 
       - name: Run linting tests
         run: |
-          flake8 --ignore=E501,F401 .
+          flake8 . --exclude=venv
 
       - name: Docker Credentials
         uses: docker/login-action@v2
@@ -62,7 +62,7 @@ jobs:
 
         # Push the Docker Image
 
-        
+
 
 
 
