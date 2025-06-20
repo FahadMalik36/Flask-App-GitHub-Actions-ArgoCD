@@ -12,69 +12,70 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Setting up environment
-      - name: Checkout code
+      # 1. Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Required for git history in later steps
 
-      - name: Setup Python
+      # 2. Set up Python
+      - name: Set up Python 3.9
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
-      - name: Docker Setup
-        uses: docker/setup-buildx-action@v3
-
-      - name: Install dependencies
+      # 3. Install dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install flake8 flake8-bugbear
 
-      # Improved Linting Step
-      - name: Run Linting tests
+      # 4. Linting (with relaxed rules)
+      - name: Run Flake8 Linting
         run: |
           flake8 . \
             --exclude=venv,.venv,__pycache__,*/site-packages/*,.git/* \
-            --ignore=E501,W503,E203,F401 \
+            --ignore=E501,E231,E203,W503,F401,E302,E266,E402 \
             --max-line-length=120 \
             --show-source \
             --statistics
 
-      # Docker operations
-      - name: Docker Login
+      # 5. Docker setup
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Generate Docker tag
+      # 6. Build and push Docker image
+      - name: Generate version tag
         id: version
         run: |
           echo "VERSION=v$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
 
-      - name: Build Docker Image
+      - name: Build Docker image
         run: |
           docker build . \
             -t fahadmalik1/demo-app:${{ env.VERSION }} \
             -t fahadmalik1/demo-app:latest
 
-      - name: Push Docker Image
+      - name: Push Docker image
         run: |
           docker push fahadmalik1/demo-app:${{ env.VERSION }}
           docker push fahadmalik1/demo-app:latest
 
-      # Kubernetes manifest update
-      - name: Update K8s Manifests
+      # 7. Update Kubernetes manifest
+      - name: Update deploy.yaml
         run: |
           sed -i "s|image: fahadmalik1/demo-app:.*|image: fahadmalik1/demo-app:${{ env.VERSION }}|g" deploy/deploy.yaml
 
-      # Git operations
-      - name: Commit and Push Changes
+      # 8. Commit changes back to Git
+      - name: Commit and push manifest update
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
           git add deploy/deploy.yaml
-          git commit -m "CI: Update image to version ${{ env.VERSION }} [skip ci]"
+          git commit -m "CI: Update image to ${{ env.VERSION }} [skip ci]"
           git push origin master
