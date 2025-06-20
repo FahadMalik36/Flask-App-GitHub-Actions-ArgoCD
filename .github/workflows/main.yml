@@ -12,11 +12,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout code
+      # 1. Checkout code (with full history)
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Needed for git history in later steps
+          fetch-depth: 0
 
       # 2. Set up Python
       - name: Set up Python 3.9
@@ -57,6 +57,7 @@ jobs:
         id: version
         run: |
           echo "VERSION=v$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
+          echo "Generated version: $VERSION"
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -69,17 +70,36 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 8. Update Kubernetes manifest
+      # 8. Update Kubernetes manifest (with debug output)
       - name: Update deploy.yaml
         run: |
+          echo "=== Current image tag in deploy.yaml ==="
+          grep "image:" deploy/deploy.yaml || echo "No image tag found!"
+          
+          echo "Updating to version: ${{ env.VERSION }}"
           sed -i "s|image: fahadmalik1/demo-app:.*|image: fahadmalik1/demo-app:${{ env.VERSION }}|g" deploy/deploy.yaml
+          
+          echo "=== Updated image tag ==="
+          grep "image:" deploy/deploy.yaml
 
-      # 9. Commit changes back to Git
+      # 9. Commit changes only if modified
       - name: Commit and push manifest update
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
-          git add deploy/deploy.yaml
-          git commit -m "CI: Update image to ${{ env.VERSION }} [skip ci]"
-          git remote set-url origin https://${{ secrets.DOCKER_HUB_USERNAME }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-          git push origin master
+          
+          echo "=== Checking for changes ==="
+          git status
+          git diff
+          
+          if git diff --quiet; then
+            echo "No changes detected in deploy.yaml"
+          else
+            echo "Changes detected, committing..."
+            git add deploy/deploy.yaml
+            git commit -m "CI: Update image to ${{ env.VERSION }} [skip ci]"
+            git remote -v
+            git remote set-url origin https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+            git push origin master
+            echo "Changes pushed successfully"
+          fi
