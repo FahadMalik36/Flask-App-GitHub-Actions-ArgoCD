@@ -14,60 +14,67 @@ jobs:
     steps:
       # Setting up environment
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for git history in later steps
 
       - name: Setup Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
       - name: Docker Setup
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install flake8
+          pip install flake8 flake8-bugbear
 
-      # Test the Code
+      # Improved Linting Step
       - name: Run Linting tests
         run: |
-          flake8 . --exclude=venv,.venv,__pycache__,*/site-packages/* --ignore=E501,F401
+          flake8 . \
+            --exclude=venv,.venv,__pycache__,*/site-packages/*,.git/* \
+            --ignore=E501,W503,E203,F401 \
+            --max-line-length=120 \
+            --show-source \
+            --statistics
 
-      - name: Docker Credentials
-        uses: docker/login-action@v2
+      # Docker operations
+      - name: Docker Login
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Docker tag
+      - name: Generate Docker tag
         id: version
         run: |
           echo "VERSION=v$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
 
-      # Build the Docker Image
       - name: Build Docker Image
         run: |
-          docker build . -t fahadmalik1/demo-app:${{ env.VERSION }}
+          docker build . \
+            -t fahadmalik1/demo-app:${{ env.VERSION }} \
+            -t fahadmalik1/demo-app:latest
 
-      # Push the Docker Image
       - name: Push Docker Image
         run: |
           docker push fahadmalik1/demo-app:${{ env.VERSION }}
+          docker push fahadmalik1/demo-app:latest
 
-      # Update the K8s Manifest Files
+      # Kubernetes manifest update
       - name: Update K8s Manifests
         run: |
-          sed -i "s|image: 1nfosecsingh/demo-app:.*|image: 1nfosecsingh/demo-app:${{ env.VERSION }}|g" deploy/deploy.yaml
-          cat deploy/deploy.yaml
+          sed -i "s|image: fahadmalik1/demo-app:.*|image: fahadmalik1/demo-app:${{ env.VERSION }}|g" deploy/deploy.yaml
 
-      # Update GitHub
-      - name: Commit the changes
+      # Git operations
+      - name: Commit and Push Changes
         run: |
-          git config --global user.email "bot@github.com"
-          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
           git add deploy/deploy.yaml
-          git commit -m "Update deploy.yaml with new image version - ${{ env.VERSION }}"
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/infosecsingh/Flask-App-GitHub-Actions-ArgoCD.git
+          git commit -m "CI: Update image to version ${{ env.VERSION }} [skip ci]"
           git push origin master
