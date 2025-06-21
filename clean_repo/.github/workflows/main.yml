@@ -1,0 +1,105 @@
+name: Test and Build
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '**/*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout code (with full history)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. Set up Python
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      # 3. Install dependencies
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8 flake8-bugbear
+
+      # 4. Linting (with relaxed rules)
+      - name: Run Flake8 Linting
+        run: |
+          flake8 . \
+            --exclude=venv,.venv,__pycache__,*/site-packages/*,.git/* \
+            --ignore=E501,E231,E203,W503,F401,E302,E266,E402 \
+            --max-line-length=120 \
+            --show-source \
+            --statistics
+
+      # 5. Docker setup
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 6. Login to Docker Hub
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      # 7. Build and push to Docker Hub
+      - name: Generate version tag
+        id: version
+        run: |
+          echo "VERSION=v$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
+          echo "Generated version: $VERSION"
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            fahadmalik1/demo-app:${{ env.VERSION }}
+            fahadmalik1/demo-app:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 8. Update Kubernetes manifest (with debug output)
+      - name: Update deploy.yaml
+        run: |
+          echo "=== Current image tag in deploy.yaml ==="
+          grep "image:" deploy/deploy.yaml || echo "No image tag found!"
+          
+          echo "Updating to version: ${{ env.VERSION }}"
+          sed -i "s|image: fahadmalik1/demo-app:.*|image: fahadmalik1/demo-app:${{ env.VERSION }}|g" deploy/deploy.yaml
+          
+          echo "=== Updated image tag ==="
+          grep "image:" deploy/deploy.yaml
+
+      # 9. Commit changes only if modified
+      - name: Commit and push manifest update
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          
+          echo "=== Checking for changes ==="
+          git status
+          git diff
+          
+          if git diff --quiet; then
+            echo "No changes detected in deploy.yaml"
+          else
+            echo "Changes detected, committing..."
+            git add deploy/deploy.yaml
+            git commit -m "CI: Update image to ${{ env.VERSION }} [skip ci]"
+            git remote -v
+            git remote set-url origin https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+            git push origin master
+            echo "Changes pushed successfully"
+          fi

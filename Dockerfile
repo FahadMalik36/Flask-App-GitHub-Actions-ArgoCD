@@ -1,20 +1,37 @@
-FROM python:3.14.0a3-alpine3.21
+# Stage 1: Build environment
+FROM python:3.14.0a3-alpine3.21 as builder
 
-# Set the working directory
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
-COPY . . 
+# Install build dependencies
+RUN apk add --no-cache build-base linux-headers
 
-# Install any needed packages specified in requirements.txt
-RUN pip install -r requirements.txt
+# Create and activate virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
-#Expose the port
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Stage 2: Runtime environment
+FROM python:3.14.0a3-alpine3.21
+
+WORKDIR /app
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Set environment variables
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Copy application code
+COPY . .
+
+# Application port
 EXPOSE 5000
 
-# Run app.py when the container launches
+# Run the application
 CMD ["python", "app.py"]
-
-
-
-

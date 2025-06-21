@@ -1,1 +1,4 @@
 minikube-*
+echo "venv/" >> .argocd-exclude
+echo "__pycache__/" >> .argocd-exclude
+echo "*.py[cod]" >> .argocd-exclude
